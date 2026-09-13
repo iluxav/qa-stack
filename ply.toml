@@ -1,0 +1,29 @@
+# qa-stack — the whole product's topology as ONE recipe.
+# The deployment order on the host is a single line:
+#     repo = "https://github.com/iluxav/qa-stack"
+# The host clones this, sees a composition, builds each git+ member on the box,
+# fetches postgres, wires them with `after`, one systemd unit per member.
+[package]
+name = "qa-stack"
+version = "0.1.0"
+
+[[service]]
+run = "postgres@17"
+name = "db"
+publish = ["internal:5432"]
+volume = ["qa-pgdata:/var/lib/postgresql/data"]
+env = { POSTGRES_PASSWORD = "qa-secret" }
+
+[[service]]
+run = "git+https://github.com/iluxav/qa-server"
+name = "server"
+build = "npm install"
+after = ["db"]                       # waits for db health + injects DB_HOST/DB_PORT
+publish = ["internal:3001"]
+env = { POSTGRES_PASSWORD = "qa-secret" }
+
+[[service]]
+run = "git+https://github.com/iluxav/qa-web"
+name = "web"
+after = ["server"]                   # waits for server health + injects SERVER_HOST/SERVER_PORT
+publish = ["8080:3000"]              # reachable at http://<droplet-ip>:8080
